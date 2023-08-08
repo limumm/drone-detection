@@ -4,36 +4,14 @@ import shutil
 import numpy as np
 from PIL import Image
 
-def resize_and_process_image(image_path, target_image_path, gt_rect, label_file_path):
-    image = Image.open(image_path)
-    width, height = image.size
-
-    # Resize the image to 640x640
-    new_width, new_height = 640, 640
-    resized_image = image.resize((new_width, new_height), Image.ANTIALIAS)
-
-    # Calculate the new bounding box positions based on the resized image
-    x_center = (gt_rect[0] + gt_rect[2] / 2) / width
-    y_center = (gt_rect[1] + gt_rect[3] / 2) / height
-    width_ratio = new_width / width
-    height_ratio = new_height / height
-
-    new_x_center = x_center * width_ratio
-    new_y_center = y_center * height_ratio
-    new_width = gt_rect[2] * width_ratio
-    new_height = gt_rect[3] * height_ratio
-
-    with open(label_file_path, "w") as txt_file:
-        txt_file.write(f"0 {new_x_center:.6f} {new_y_center:.6f} {new_width:.6f} {new_height:.6f}\n")
-
-    resized_image.save(target_image_path)
 def process_images(source_folder, target_folder):
     image_count = 1
     label_folder = os.path.join(target_folder, "labels")
     image_folder_path = os.path.join(target_folder, "imgs")
     if not os.path.exists(label_folder):
         os.makedirs(label_folder)
-
+    if not os.path.exists(image_folder_path):
+        os.makedirs(image_folder_path)
     for folder_name in sorted(os.listdir(source_folder)):
         folder_path = os.path.join(source_folder, folder_name)
 
@@ -54,9 +32,13 @@ def process_images(source_folder, target_folder):
                 image_count += 1
                 print('img_count ' + str(image_count))
                 image_path = os.path.join(folder_path, f"{i:06}.jpg")
+                image = Image.open(image_path)
+                width, height = image.size
+                new_width, new_height = 640, 640
+                resized_image = Image.new("RGB", (new_width, new_height), color="black")
+                resized_image.paste(image, (0, 0))
                 target_image_path = os.path.join(image_folder_path, image_name)
-
-                shutil.copy(image_path, target_image_path)
+                resized_image.save(target_image_path)
 
                 if exist == 1:
                     txt_file_path = os.path.join(label_folder, txt_name)
@@ -99,14 +81,44 @@ if __name__ == "__main__":
     source_folder = './无人机检测与追踪/train/'
     train_path = './dataset/train/'
 
+
     if not os.path.exists(train_path):
         os.makedirs(train_path)
 
-    # process_images(source_folder, train_path)
+    process_images(source_folder, train_path)
 
     val_path = './dataset/val/'
     if not os.path.exists(val_path):
         os.makedirs(val_path)
 
     split_train_val(train_path, val_path, val_rate=0.2)
+    print("重构数据集中")
     
+    
+    original_dataset_path = './dataset'
+    train_imgs_path = os.path.join(original_dataset_path, 'train', 'imgs')
+    train_labels_path = os.path.join(original_dataset_path, 'train', 'labels')
+    val_imgs_path = os.path.join(original_dataset_path, 'val', 'imgs')
+    val_labels_path = os.path.join(original_dataset_path, 'val', 'labels')
+
+    
+    new_dataset_path = './Dataset'
+    new_imgs_path = os.path.join(new_dataset_path, 'images')
+    new_labels_path = os.path.join(new_dataset_path, 'labels')
+
+    
+    os.makedirs(new_imgs_path, exist_ok=True)
+    os.makedirs(new_labels_path, exist_ok=True)
+
+    
+    shutil.move(train_imgs_path, os.path.join(new_imgs_path, 'train'))
+    shutil.move(val_imgs_path, os.path.join(new_imgs_path, 'val'))
+    shutil.move(train_labels_path, os.path.join(new_labels_path, 'train'))
+    shutil.move(val_labels_path, os.path.join(new_labels_path, 'val'))
+
+    
+    os.rmdir(os.path.join(original_dataset_path, 'train'))
+    os.rmdir(os.path.join(original_dataset_path, 'val'))
+    os.rmdir(original_dataset_path)
+    
+    print("数据集重构完成！")
